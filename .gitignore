@@ -1,0 +1,75 @@
+# ai generted .gitignore for Django projects
+
+# =========================
+# Environment Variables
+# =========================
+.env
+.env.*
+!.env.example
+
+# =========================
+# Virtual Environments (uv / standard)
+# =========================
+.venv/
+venv/
+env/
+ENV/
+
+# =========================
+# Python Caches
+# =========================
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# =========================
+# Django Specific
+# =========================
+*.log
+local_settings.py
+db.sqlite3
+db.sqlite3-journal
+
+# Ignore user-uploaded media and collected static files
+media/
+staticfiles/
+static/CACHE/
+
+# =========================
+# Testing & Coverage
+# =========================
+.pytest_cache/
+.tox/
+.coverage
+.coverage.*
+htmlcov/
+nosetests.xml
+coverage.xml
+
+# =========================
+# Celery / Redis / Async
+# =========================
+celerybeat-schedule
+celerybeat.pid
+
+# =========================
+# IDEs and Editors
+# =========================
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# =========================
+# OS Generated Files
+# =========================
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
