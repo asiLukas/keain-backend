@@ -12,3 +12,15 @@ dependencies = [
     "psycopg>=3.3.3",
     "strawberry-graphql-django>=0.82.1",
 ]
+
+[tool.isort]
+profile = "black"
+line_length = 100
+known_third_party = [
+    "betamax", "celery", "dateutil", "django", "factory", "freezegun", 
+    "graphene_django", "graphene_file_upload", "graphql", "ho", 
+    "html2text", "html5lib", "httplib2", "hypothesis", "localflavor", 
+    "lxml", "magic", "mock", "newrelic", "oauth2_provider", "pandas", 
+    "PIL", "PyPDF2", "pytest", "pytz", "rest_framework", "six", 
+    "stripe", "twilio", "unittest2", "urbanairship"
+]

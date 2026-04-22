@@ -14,11 +14,13 @@ Including another URLconf
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
 
-import strawberry
 from django.contrib import admin
 from django.urls import path
+from django.views.decorators.csrf import csrf_exempt
 from ninja import NinjaAPI
-from strawberry.django.views import AsyncGraphQLView
+from strawberry.django.views import GraphQLView
+
+from .schema import schema
 
 api = NinjaAPI(title="Keain API", version="1.0.0")
 
@@ -28,18 +30,8 @@ def upload_audio(request):
     return {"status": "success", "upload_url": "https://TODO"}
 
 
-@strawberry.type
-class Query:
-    @strawberry.field
-    def hello(self) -> str:
-        return "yo TODO"
-
-
-schema = strawberry.Schema(query=Query)
-
-
 urlpatterns = [
     path("admin/", admin.site.urls),
     path("api/", api.urls),
-    path("graphql/", AsyncGraphQLView.as_view(schema=schema)),
+    path("graphql/", csrf_exempt(GraphQLView.as_view(schema=schema))),
 ]
