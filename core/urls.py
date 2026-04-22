@@ -13,13 +13,15 @@ Including another URLconf
     1. Import the include() function: from django.urls import include, path
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
+
+import strawberry
 from django.contrib import admin
 from django.urls import path
 from ninja import NinjaAPI
 from strawberry.django.views import AsyncGraphQLView
-import strawberry
 
 api = NinjaAPI(title="Keain API", version="1.0.0")
+
 
 @api.post("/upload-audio")
 def upload_audio(request):
@@ -32,11 +34,12 @@ class Query:
     def hello(self) -> str:
         return "yo TODO"
 
+
 schema = strawberry.Schema(query=Query)
 
 
 urlpatterns = [
-    path('admin/', admin.site.urls),
-    path('api/', api.urls),
-    path('graphql/', AsyncGraphQLView.as_view(schema=schema)),
+    path("admin/", admin.site.urls),
+    path("api/", api.urls),
+    path("graphql/", AsyncGraphQLView.as_view(schema=schema)),
 ]
