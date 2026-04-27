@@ -19,17 +19,9 @@ from typing import Any, Dict
 from django.contrib import admin
 from django.urls import path
 from django.views.decorators.csrf import csrf_exempt
-from ninja import NinjaAPI
 from strawberry.django.views import GraphQLView
 
 from .schema import schema
-
-api = NinjaAPI(title="Keain API", version="1.0.0")
-
-
-@api.post("/upload-audio")
-def upload_audio(request):
-    return {"status": "success", "upload_url": "https://TODO"}
 
 
 class KeainGraphQLView(GraphQLView):
@@ -41,6 +33,5 @@ class KeainGraphQLView(GraphQLView):
 
 urlpatterns = [
     path("admin/", admin.site.urls),
-    path("api/", api.urls),
     path("graphql/", csrf_exempt(KeainGraphQLView.as_view(schema=schema))),
 ]
