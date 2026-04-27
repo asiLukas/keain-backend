@@ -14,6 +14,8 @@ Including another URLconf
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
 
+from typing import Any, Dict
+
 from django.contrib import admin
 from django.urls import path
 from django.views.decorators.csrf import csrf_exempt
@@ -30,8 +32,15 @@ def upload_audio(request):
     return {"status": "success", "upload_url": "https://TODO"}
 
 
+class KeainGraphQLView(GraphQLView):
+    def get_context(self, request, response) -> Dict[str, Any]:
+        from user.graphql.utils import get_user_from_request
+
+        return {"request": request, "response": response, "user": get_user_from_request(request)}
+
+
 urlpatterns = [
     path("admin/", admin.site.urls),
     path("api/", api.urls),
-    path("graphql/", csrf_exempt(GraphQLView.as_view(schema=schema))),
+    path("graphql/", csrf_exempt(KeainGraphQLView.as_view(schema=schema))),
 ]
