@@ -11,3 +11,12 @@ class KeainUserType:
     email: strawberry.auto
     is_active: strawberry.auto
     theme: KeainUser.AppTheme
+
+
+@strawberry.type
+class AuthType:
+    access_token: str
+    refresh_token: str
+    user: KeainUserType
+
+

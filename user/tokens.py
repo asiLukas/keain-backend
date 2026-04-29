@@ -5,16 +5,16 @@ from django.conf import settings
 from django.utils import timezone
 
 
-def create_access_token(username: int) -> str:
+def create_access_token(username: str) -> str:
     payload = {
         "sub": username,
-        "exp": timezone.now() + timedelta(minutes=15),
+        "exp": timezone.now() + timedelta(minutes=30),
         "type": "access",
     }
     return jwt.encode(payload, settings.SECRET_KEY, algorithm="HS256")
 
 
-def create_refresh_token(username: int) -> str:
+def create_refresh_token(username: str) -> str:
     payload = {
         "sub": username,
         "exp": timezone.now() + timedelta(days=30),
