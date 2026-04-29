@@ -3,6 +3,7 @@ from graphql import GraphQLError
 from strawberry.types.info import Info
 
 from core.permissions import IsAuthenticated, IsSuperuser
+from user.graphql.utils import rate_limit
 from user.models import KeainUser
 
 from .types import KeainUserType
@@ -24,3 +25,8 @@ class KeainUserQuery:
     @strawberry.field(permission_classes=[IsAuthenticated])
     def me(self, info: Info) -> KeainUserType:
         return info.context["user"]
+
+    @strawberry.field()
+    @rate_limit(action="check_username", max_requests=5, window_seconds=60)
+    def username_available(self, info: Info, username: str) -> bool:
+        return not KeainUser.objects.filter(username=username).exists()
