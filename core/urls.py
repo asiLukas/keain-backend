@@ -25,7 +25,7 @@ from .schema import schema
 
 
 class KeainGraphQLView(GraphQLView):
-    def get_context(self, request, response) -> Dict[str, Any]:
+    def get_context(self, request, response) -> Dict[str, Any]:  # type: ignore[override]
         from user.graphql.utils import get_user_from_request
 
         return {"request": request, "response": response, "user": get_user_from_request(request)}
@@ -33,5 +33,8 @@ class KeainGraphQLView(GraphQLView):
 
 urlpatterns = [
     path("admin/", admin.site.urls),
-    path("graphql/", csrf_exempt(KeainGraphQLView.as_view(schema=schema))),
+    path(
+        "graphql/",
+        csrf_exempt(KeainGraphQLView.as_view(schema=schema, multipart_uploads_enabled=True)),
+    ),
 ]
