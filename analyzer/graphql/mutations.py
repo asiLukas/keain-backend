@@ -4,6 +4,7 @@ from strawberry.file_uploads import Upload
 from strawberry.types.info import Info
 
 from analyzer.graphql.types import AnalyzeResult
+from analyzer.models import Analysis
 from analyzer.services import analyze_keyboard_audio
 from core.permissions import IsAuthenticated
 
@@ -20,7 +21,11 @@ class AnalyzerMutation:
     def analyze_file(self, info: Info, file: Upload) -> AnalyzeResult:
         try:
             result = analyze_keyboard_audio(file)
-            print(result)
+            # TODO BUILD
+            Analysis.objects.create(
+                **strawberry.asdict(result), owner=info.context["user"], audio=file, build=None
+            )
+
             return result
         except GraphQLError:
             raise
