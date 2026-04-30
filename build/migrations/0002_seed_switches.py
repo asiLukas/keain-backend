@@ -3,9 +3,7 @@ from pathlib import Path
 
 from django.db import migrations
 
-SEED_FILE = (
-    Path(__file__).resolve().parent.parent / "seed_data" / "switches.json"
-)
+SEED_FILE = Path(__file__).resolve().parent.parent / "seed_data" / "switches.json"
 
 TYPE_MAP = {
     "Linear": "linear",

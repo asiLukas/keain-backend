@@ -1,7 +1,52 @@
+from django.conf import settings
 from django.db import models
 
 
-class Switch(models.Model):
+class OwnableQuerySet(models.QuerySet):
+    """Visibility helper: public (created_by NULL) + own private entries."""
+
+    def visible_to(self, user):
+        if user is None or not user.is_authenticated:
+            return self.filter(created_by__isnull=True)
+        return self.filter(models.Q(created_by__isnull=True) | models.Q(created_by=user))
+
+
+class Ownable(models.Model):
+    """Mixin: NULL created_by = public/seeded. Non-NULL = private to that user."""
+
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="+",
+    )
+
+    objects = OwnableQuerySet.as_manager()
+
+    class Meta:
+        abstract = True
+
+
+class Layout(models.TextChoices):
+    """Shared keyboard form-factor across Case/Plate/PCB."""
+
+    LAYOUT_40 = "40", "40%"
+    LAYOUT_60 = "60", "60%"
+    LAYOUT_65 = "65", "65%"
+    LAYOUT_75 = "75", "75%"
+    TKL = "tkl", "TKL"
+    LAYOUT_1800 = "1800", "1800"
+    FULL = "full", "Full Size"
+    HHKB = "hhkb", "HHKB"
+    ALICE = "alice", "Alice"
+    SOUTHPAW = "southpaw", "Southpaw"
+    ERGO = "ergo", "Ergo / Split"
+    NUMPAD = "numpad", "Numpad"
+    MACROPAD = "macropad", "Macropad"
+
+
+class Switch(Ownable):
     """Mechanical keyboard switch reference data.
 
     Seeded from analyzer/seed_data/switches.json (~2.5k entries).
@@ -107,6 +152,237 @@ class Switch(models.Model):
                 name="unique_switch_variant",
             ),
         ]
+
+    def __str__(self) -> str:
+        return self.name
+
+
+class Case(Ownable):
+    """Keyboard case reference data."""
+
+    class Material(models.TextChoices):
+        ALUMINUM = "aluminum", "Aluminum"
+        POLYCARBONATE = "polycarbonate", "Polycarbonate"
+        BRASS = "brass", "Brass"
+        COPPER = "copper", "Copper"
+        STEEL = "steel", "Steel"
+        TITANIUM = "titanium", "Titanium"
+        ACRYLIC = "acrylic", "Acrylic"
+        WOOD = "wood", "Wood"
+        FR4 = "fr4", "FR4"
+        POM = "pom", "POM"
+        ABS = "abs", "ABS"
+        CARBON_FIBER = "carbon_fiber", "Carbon Fiber"
+
+    class MountStyle(models.TextChoices):
+        TRAY = "tray", "Tray Mount"
+        TOP = "top", "Top Mount"
+        BOTTOM = "bottom", "Bottom Mount"
+        GASKET = "gasket", "Gasket Mount"
+        INTEGRATED = "integrated", "Integrated Plate"
+        SANDWICH = "sandwich", "Sandwich Mount"
+        BURGER = "burger", "Burger Mount"
+        LEAF_SPRING = "leaf_spring", "Leaf Spring"
+        O_RING = "o_ring", "O-Ring Mount"
+        PLATELESS = "plateless", "Plateless"
+        FORCE_BREAK = "force_break", "Force Break"
+        PCB_MOUNT = "pcb_mount", "PCB Mount"
+
+    name = models.CharField(max_length=255)
+    manufacturer = models.CharField(max_length=128, blank=True, default="")
+    material = models.CharField(max_length=20, choices=Material.choices, null=True, blank=True)
+    mount_style = models.CharField(max_length=20, choices=MountStyle.choices, null=True, blank=True)
+    layout = models.CharField(max_length=12, choices=Layout.choices, null=True, blank=True)
+
+    class Meta:
+        ordering = ["manufacturer", "name"]
+        indexes = [
+            models.Index(fields=["layout"]),
+            models.Index(fields=["mount_style"]),
+            models.Index(fields=["name"]),
+        ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["manufacturer", "name", "material", "mount_style", "layout"],
+                name="unique_case_variant",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.manufacturer} {self.name}".strip()
+
+
+class Plate(models.Model):
+    """Switch plate."""
+
+    class Material(models.TextChoices):
+        FR4 = "fr4", "FR4"
+        BRASS = "brass", "Brass"
+        ALUMINUM = "aluminum", "Aluminum"
+        POLYCARBONATE = "polycarbonate", "Polycarbonate"
+        POM = "pom", "POM"
+        CARBON_FIBER = "carbon_fiber", "Carbon Fiber"
+        PETG = "petg", "PETG"
+        COPPER = "copper", "Copper"
+        STEEL = "steel", "Steel"
+        TITANIUM = "titanium", "Titanium"
+        ACRYLIC = "acrylic", "Acrylic"
+
+    material = models.CharField(max_length=20, choices=Material.choices, null=True, blank=True)
+    flex_cuts = models.BooleanField(default=False)
+    half_plate = models.BooleanField(default=False)
+
+    class Meta:
+        ordering = ["material"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["material", "flex_cuts", "half_plate"],
+                name="unique_plate_variant",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        parts = [self.get_material_display() or "Plate"]
+        if self.flex_cuts:
+            parts.append("flex-cut")
+        if self.half_plate:
+            parts.append("half")
+        return " ".join(parts)
+
+
+class PCB(models.Model):
+    """Printed circuit board."""
+
+    class RGB(models.TextChoices):
+        NONE = "none", "None"
+        UNDERGLOW = "underglow", "Underglow"
+        PER_KEY = "per_key", "Per-Key"
+        BOTH = "both", "Underglow + Per-Key"
+
+    rgb = models.CharField(max_length=12, choices=RGB.choices, default=RGB.NONE)
+    hotswap = models.BooleanField(default=False)
+    wireless = models.BooleanField(default=False)
+
+    class Meta:
+        verbose_name = "PCB"
+        verbose_name_plural = "PCBs"
+        ordering = ["rgb"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["rgb", "hotswap", "wireless"],
+                name="unique_pcb_variant",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        parts = [f"PCB ({self.get_rgb_display()})"]
+        if self.hotswap:
+            parts.append("hotswap")
+        if self.wireless:
+            parts.append("wireless")
+        return " ".join(parts)
+
+
+class KeycapSet(Ownable):
+    """Keycap set."""
+
+    class Profile(models.TextChoices):
+        CHERRY = "cherry", "Cherry"
+        OEM = "oem", "OEM"
+        SA = "sa", "SA"
+        MT3 = "mt3", "MT3"
+        KAT = "kat", "KAT"
+        KAM = "kam", "KAM"
+        XDA = "xda", "XDA"
+        DSA = "dsa", "DSA"
+        MDA = "mda", "MDA"
+        FLAT = "flat", "Flat"
+        CHOC = "choc", "Choc"
+
+    manufacturer = models.CharField(max_length=128, blank=True, default="")
+    colorway = models.CharField(max_length=128, blank=True, default="")
+    profile = models.CharField(max_length=12, choices=Profile.choices, null=True, blank=True)
+
+    class Meta:
+        ordering = ["manufacturer", "colorway"]
+        indexes = [
+            models.Index(fields=["profile"]),
+        ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["manufacturer", "colorway", "profile"],
+                name="unique_keycap_variant",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.manufacturer} {self.colorway}".strip()
+
+
+class Stabilizer(models.Model):
+    """Stabilizer set."""
+
+    class MountType(models.TextChoices):
+        PCB_SCREW_IN = "pcb_screw_in", "PCB Screw-In"
+        PCB_SNAP_IN = "pcb_snap_in", "PCB Snap-In"
+        PLATE_MOUNT = "plate_mount", "Plate Mount"
+
+    manufacturer = models.CharField(max_length=128, blank=True, default="")
+    mount_type = models.CharField(max_length=20, choices=MountType.choices, null=True, blank=True)
+
+    class Meta:
+        ordering = ["manufacturer", "mount_type"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["manufacturer", "mount_type"],
+                name="unique_stabilizer_variant",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.manufacturer} {self.get_mount_type_display() or ''}".strip()
+
+
+class Build(models.Model):
+    """User keyboard build — links components."""
+
+    name = models.CharField(max_length=255)
+    owner = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="builds",
+    )
+    case = models.ForeignKey(
+        Case, on_delete=models.PROTECT, null=True, blank=True, related_name="builds"
+    )
+    plate = models.ForeignKey(
+        Plate, on_delete=models.PROTECT, null=True, blank=True, related_name="builds"
+    )
+    pcb = models.ForeignKey(
+        PCB, on_delete=models.PROTECT, null=True, blank=True, related_name="builds"
+    )
+    keycap_set = models.ForeignKey(
+        KeycapSet,
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="builds",
+    )
+    stabilizer = models.ForeignKey(
+        Stabilizer,
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="builds",
+    )
+    switch = models.ForeignKey(Switch, on_delete=models.PROTECT, related_name="builds")
+    notes = models.TextField(blank=True, default="")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-updated_at"]
+        indexes = [models.Index(fields=["owner", "-updated_at"])]
 
     def __str__(self) -> str:
         return self.name
