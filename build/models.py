@@ -242,7 +242,7 @@ class Plate(models.Model):
         ]
 
     def __str__(self) -> str:
-        parts = [self.get_material_display() or "Plate"]
+        parts = [self.material or "Plate"]
         if self.flex_cuts:
             parts.append("flex-cut")
         if self.half_plate:
@@ -275,7 +275,7 @@ class PCB(models.Model):
         ]
 
     def __str__(self) -> str:
-        parts = [f"PCB ({self.get_rgb_display()})"]
+        parts = [f"PCB ({self.rgb})"]
         if self.hotswap:
             parts.append("hotswap")
         if self.wireless:
@@ -340,7 +340,7 @@ class Stabilizer(models.Model):
         ]
 
     def __str__(self) -> str:
-        return f"{self.manufacturer} {self.get_mount_type_display() or ''}".strip()
+        return f"{self.manufacturer} {self.mount_type or ''}".strip()
 
 
 class Build(models.Model):
