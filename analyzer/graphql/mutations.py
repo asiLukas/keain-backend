@@ -1,3 +1,5 @@
+from typing import Optional
+
 import strawberry
 from graphql import GraphQLError
 from strawberry.file_uploads import Upload
@@ -6,6 +8,7 @@ from strawberry.types.info import Info
 from analyzer.graphql.types import AnalyzeResult
 from analyzer.models import Analysis
 from analyzer.services import analyze_keyboard_audio
+from build.models import Build
 from core.permissions import IsAuthenticated
 
 
@@ -18,12 +21,19 @@ class AnalyzerMutation:
         ),
         permission_classes=[IsAuthenticated],
     )
-    def analyze_file(self, info: Info, file: Upload) -> AnalyzeResult:
+    def analyze_file(
+        self, info: Info, file: Upload, build_id: Optional[strawberry.ID]
+    ) -> AnalyzeResult:
+        build = None
+        try:
+            if build_id:
+                build = Build.objects.get(id=build_id)
+        except Build.DoesNotExist:
+            raise GraphQLError("Build not found", extensions={"code": "400"})
         try:
             result = analyze_keyboard_audio(file)
-            # TODO BUILD
             Analysis.objects.create(
-                **strawberry.asdict(result), owner=info.context["user"], audio=file, build=None
+                **strawberry.asdict(result), owner=info.context["user"], audio=file, build=build
             )
 
             return result
