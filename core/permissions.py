@@ -2,6 +2,8 @@ from graphql import GraphQLError
 from strawberry.permission import BasePermission
 from strawberry.types import Info
 
+from core.error_codes import FORBIDDEN, UNAUTHENTICATED, err
+
 
 class IsAuthenticated(BasePermission):
     message = "Not authenticated."
@@ -10,7 +12,7 @@ class IsAuthenticated(BasePermission):
         return info.context.get("user") is not None
 
     def on_unauthorized(self):
-        raise GraphQLError(self.message, extensions={"code": 401})
+        raise GraphQLError(self.message, extensions=err(UNAUTHENTICATED))
 
 
 class IsSuperuser(BasePermission):
@@ -21,4 +23,4 @@ class IsSuperuser(BasePermission):
         return user is not None and user.is_superuser
 
     def on_unauthorized(self):
-        raise GraphQLError(self.message, extensions={"code": 403})
+        raise GraphQLError(self.message, extensions=err(FORBIDDEN))

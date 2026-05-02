@@ -1,13 +1,17 @@
 import jwt
 import strawberry
+from django.contrib.auth.hashers import check_password, make_password
 from django.db import IntegrityError
 from graphql import GraphQLError
 from strawberry.types.info import Info
 
+from core.error_codes import CONFLICT, UNAUTHENTICATED, err
 from core.permissions import IsAuthenticated
 from user.graphql.types import AuthType, KeainUserType
 from user.models import KeainUser
 from user.tokens import create_access_token, create_refresh_token, decode_token
+
+_DUMMY_PASSWORD_HASH = make_password("dummy-password-for-constant-time-login")
 
 
 @strawberry.type
@@ -17,7 +21,7 @@ class KeainUserMutation:
         try:
             user = KeainUser.objects.create_user(username=username, email=email, password=password)
         except IntegrityError:
-            raise GraphQLError("Username already taken.", extensions={"code": 409})
+            raise GraphQLError("Username already taken.", extensions=err(CONFLICT))
         return user
 
     @strawberry.mutation(description="Update a user's theme", permission_classes=[IsAuthenticated])
@@ -29,12 +33,11 @@ class KeainUserMutation:
 
     @strawberry.mutation(description="Authenticate a user and return an auth payload")
     def login(self, username: str, password: str) -> AuthType:
-        try:
-            user = KeainUser.objects.get(username=username)
-        except KeainUser.DoesNotExist:
-            raise GraphQLError("Invalid credentials.", extensions={"code": 401})
-        if not user.check_password(password):
-            raise GraphQLError("Invalid credentials.", extensions={"code": 401})
+        user = KeainUser.objects.filter(username=username).first()
+        pw_hash = user.password if user else _DUMMY_PASSWORD_HASH
+        pw_ok = check_password(password, pw_hash)
+        if user is None or not pw_ok:
+            raise GraphQLError("Invalid credentials.", extensions=err(UNAUTHENTICATED))
 
         return AuthType(
             access_token=create_access_token(user.username),
@@ -47,17 +50,17 @@ class KeainUserMutation:
         try:
             payload = decode_token(refresh_token)
         except jwt.ExpiredSignatureError:
-            raise GraphQLError("Refresh token has expired", extensions={"code": 401})
+            raise GraphQLError("Refresh token has expired", extensions=err(UNAUTHENTICATED))
         except jwt.InvalidTokenError:
-            raise GraphQLError("Invalid refresh token", extensions={"code": 401})
+            raise GraphQLError("Invalid refresh token", extensions=err(UNAUTHENTICATED))
 
         if payload.get("type") != "refresh":
-            raise GraphQLError("Invalid token type", extensions={"code": 401})
+            raise GraphQLError("Invalid token type", extensions=err(UNAUTHENTICATED))
 
         try:
             user = KeainUser.objects.get(username=payload["sub"])
         except KeainUser.DoesNotExist:
-            raise GraphQLError("Invalid token", extensions={"code": 401})
+            raise GraphQLError("Invalid token", extensions=err(UNAUTHENTICATED))
         return AuthType(
             access_token=create_access_token(user.username),
             refresh_token=create_refresh_token(user.username),

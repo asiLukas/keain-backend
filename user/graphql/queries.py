@@ -2,6 +2,7 @@ import strawberry
 from graphql import GraphQLError
 from strawberry.types.info import Info
 
+from core.error_codes import NOT_FOUND, err
 from core.permissions import IsAuthenticated, IsSuperuser
 from user.graphql.utils import rate_limit
 from user.models import KeainUser
@@ -20,7 +21,7 @@ class KeainUserQuery:
         try:
             return KeainUser.objects.get(pk=id)
         except KeainUser.DoesNotExist:
-            raise GraphQLError("User not found.", extensions={"code": 404})
+            raise GraphQLError("User not found.", extensions=err(NOT_FOUND))
 
     @strawberry.field(permission_classes=[IsAuthenticated])
     def me(self, info: Info) -> KeainUserType:

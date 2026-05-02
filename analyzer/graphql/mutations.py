@@ -9,6 +9,7 @@ from analyzer.graphql.types import AnalyzeResult
 from analyzer.models import Analysis
 from analyzer.services import analyze_keyboard_audio
 from build.models import Build
+from core.error_codes import INTERNAL, INVALID_AUDIO, NOT_FOUND, err
 from core.permissions import IsAuthenticated
 
 
@@ -29,9 +30,10 @@ class AnalyzerMutation:
             if build_id:
                 build = Build.objects.get(id=build_id)
         except Build.DoesNotExist:
-            raise GraphQLError("Build not found", extensions={"code": "400"})
+            raise GraphQLError("Build not found", extensions=err(NOT_FOUND))
         try:
             result = analyze_keyboard_audio(file)
+            file.seek(0)
             Analysis.objects.create(
                 **strawberry.asdict(result), owner=info.context["user"], audio=file, build=build
             )
@@ -42,10 +44,10 @@ class AnalyzerMutation:
         except ValueError as e:
             raise GraphQLError(
                 str(e),
-                extensions={"code": "INVALID_AUDIO", "reason": "INPUT"},
+                extensions=err(INVALID_AUDIO, reason="INPUT"),
             ) from e
         except Exception as e:
             raise GraphQLError(
                 f"Failed to analyze audio: {e}",
-                extensions={"code": "INTERNAL"},
+                extensions=err(INTERNAL),
             ) from e

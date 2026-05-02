@@ -13,6 +13,7 @@ from build.models import (
     Stabilizer,
     Switch,
 )
+from core.error_codes import NOT_FOUND, err
 from core.permissions import IsAuthenticated
 
 from .types import (
@@ -90,4 +91,4 @@ class BuildQuery:
         try:
             return Build.objects.get(pk=id, owner=info.context["user"])
         except Build.DoesNotExist:
-            raise GraphQLError("Build not found.", extensions={"code": 404})
+            raise GraphQLError("Build not found.", extensions=err(NOT_FOUND))

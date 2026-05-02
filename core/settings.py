@@ -27,6 +27,11 @@ DEBUG = env("DEBUG")
 ALLOWED_HOSTS = env.list("ALLOWED_HOSTS", default=["*"])
 CORS_ALLOW_ALL_ORIGINS = DEBUG
 
+# Only set to True when Django sits behind a trusted reverse proxy that
+# overwrites X-Forwarded-For with the real client IP. Without this guard,
+# clients can spoof XFF and bypass rate limits.
+TRUST_PROXY_HEADERS = env.bool("TRUST_PROXY_HEADERS", default=False)
+
 
 # Application definition
 

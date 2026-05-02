@@ -16,16 +16,16 @@ Frequency bands chosen for mechanical keyboard acoustics:
 
 from __future__ import annotations
 
-import os
-import shutil
-import subprocess
-import tempfile
+from io import BytesIO
 from typing import List
 
+import av
 import librosa
 import numpy as np
 from graphql import GraphQLError
 from scipy.signal import butter, sosfiltfilt
+
+from core.error_codes import INVALID_AUDIO, err
 
 from .graphql.types import AnalyzeResult
 
@@ -85,7 +85,7 @@ def _reject(reason_code: str, message: str) -> None:
     """Raise GraphQLError with structured INVALID_AUDIO code per backend convention."""
     raise GraphQLError(
         message,
-        extensions={"code": "INVALID_AUDIO", "reason": reason_code},
+        extensions=err(INVALID_AUDIO, reason=reason_code),
     )
 
 
@@ -131,59 +131,50 @@ def _validate_recording(
         )
 
 
-def _suffix_for(file_obj) -> str:
-    """Pick file suffix from upload metadata so audioread/ffmpeg picks the right demuxer."""
-    name = getattr(file_obj, "name", "") or ""
-    _, ext = os.path.splitext(name)
-    if ext:
-        return ext.lower()
-    ctype = getattr(file_obj, "content_type", "") or ""
-    return {
-        "audio/m4a": ".m4a",
-        "audio/mp4": ".m4a",
-        "audio/aac": ".aac",
-        "audio/mpeg": ".mp3",
-        "audio/wav": ".wav",
-        "audio/x-wav": ".wav",
-        "audio/ogg": ".ogg",
-        "audio/flac": ".flac",
-    }.get(ctype, ".m4a")
+def _decode_audio(raw: bytes, sr: int, max_duration_s: float) -> np.ndarray:
+    """Decode any container PyAV supports to mono float32 PCM at sr Hz.
 
-
-def _decode_with_ffmpeg(path: str, sr: int, max_duration_s: float) -> np.ndarray:
-    """Decode any audio container ffmpeg supports to mono float32 PCM at sr Hz.
-
-    Bypasses audioread, which silently fails when ffmpeg isn't on the Django
-    process PATH (common when runserver is launched from a GUI/launchd).
+    PyAV bundles libav in its wheel, so no system ffmpeg is required.
     """
-    ffmpeg = shutil.which("ffmpeg") or "/opt/homebrew/bin/ffmpeg"
-    if not os.path.exists(ffmpeg):
-        raise RuntimeError("ffmpeg not found; install via `brew install ffmpeg`")
-    proc = subprocess.run(
-        [
-            ffmpeg,
-            "-nostdin",
-            "-loglevel",
-            "error",
-            "-i",
-            path,
-            "-t",
-            str(max_duration_s),
-            "-ac",
-            "1",
-            "-ar",
-            str(sr),
-            "-f",
-            "f32le",
-            "-",
-        ],
-        capture_output=True,
-        check=False,
-    )
-    if proc.returncode != 0:
-        err = proc.stderr.decode("utf-8", errors="replace").strip()
-        raise RuntimeError(f"ffmpeg decode failed: {err}")
-    return np.frombuffer(proc.stdout, dtype=np.float32).copy()
+    max_samples = int(sr * max_duration_s)
+    chunks: List[np.ndarray] = []
+    total = 0
+
+    try:
+        container = av.open(BytesIO(raw))
+    except av.FFmpegError as e:
+        raise RuntimeError(f"audio decode failed: {e}") from e
+
+    try:
+        if not container.streams.audio:
+            raise RuntimeError("audio decode failed: no audio stream")
+        stream = container.streams.audio[0]
+        resampler = av.AudioResampler(format="flt", layout="mono", rate=sr)
+
+        def _take(frames):
+            nonlocal total
+            for f in frames:
+                arr = f.to_ndarray().reshape(-1).astype(np.float32, copy=False)
+                if total + arr.size > max_samples:
+                    arr = arr[: max_samples - total]
+                if arr.size:
+                    chunks.append(arr)
+                    total += arr.size
+                if total >= max_samples:
+                    return True
+            return False
+
+        for frame in container.decode(stream):
+            if _take(resampler.resample(frame)):
+                break
+        else:
+            _take(resampler.resample(None))  # flush
+    finally:
+        container.close()
+
+    if not chunks:
+        return np.zeros(0, dtype=np.float32)
+    return np.concatenate(chunks)
 
 
 def analyze_keyboard_audio(file_obj) -> AnalyzeResult:
@@ -191,19 +182,8 @@ def analyze_keyboard_audio(file_obj) -> AnalyzeResult:
     if not raw:
         raise ValueError("Empty audio file")
 
-    # Write to temp file with correct suffix so ffmpeg picks the demuxer.
-    suffix = _suffix_for(file_obj)
-    with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
-        tmp.write(raw)
-        tmp_path = tmp.name
-    try:
-        y = _decode_with_ffmpeg(tmp_path, SR, MAX_DURATION_S)
-        sr = SR
-    finally:
-        try:
-            os.unlink(tmp_path)
-        except OSError:
-            pass
+    y = _decode_audio(raw, SR, MAX_DURATION_S)
+    sr = SR
 
     if y.size < int(sr * 0.2):
         raise ValueError("Audio too short (need >=0.2s)")
