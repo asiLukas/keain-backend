@@ -3,6 +3,7 @@ from django.core.files.uploadedfile import UploadedFile
 from strawberry.file_uploads import UploadDefinition
 
 from analyzer.graphql.mutations import AnalyzerMutation
+from analyzer.graphql.queries import AnalyzerQuery
 from build.graphql.mutations import BuildMutation
 from build.graphql.queries import BuildQuery
 from user.graphql.mutations import KeainUserMutation
@@ -10,7 +11,7 @@ from user.graphql.queries import KeainUserQuery
 
 
 @strawberry.type
-class Query(KeainUserQuery, BuildQuery):
+class Query(KeainUserQuery, BuildQuery, AnalyzerQuery):
     pass
 
 

@@ -17,24 +17,43 @@ Frequency bands chosen for mechanical keyboard acoustics:
 from __future__ import annotations
 
 from io import BytesIO
-from typing import List
+from typing import List, Optional
 
 import av
 import librosa
 import numpy as np
+import strawberry
 from graphql import GraphQLError
 from scipy.signal import butter, sosfiltfilt
 
 from core.error_codes import INVALID_AUDIO, err
 
-from .graphql.types import AnalyzeResult
+
+@strawberry.type
+class AnalyzeResult:
+    message: str
+    thock: int
+    clack: int
+    creaminess: int
+    pitch: int
+    consistency: int
+    tonal_balance: int
+    peak_resonance: int
+    purity: int
+    peak_loudness: int
+    metallic_resonance: int
+    variance: int
+    frequency_response: List[float]
+    frequency_response_hz: List[float]
+    verdict: Optional[str]  # behind paywall, TODO
+
 
 SR = 22050  # Nyquist 11025 Hz covers full audible keyboard range
 MAX_DURATION_S = 10.0
 HPF_CUTOFF_HZ = 80
 N_FFT = 1024  # ~46ms window; better transient resolution than 2048 (93ms)
 HOP = 256
-N_FREQ_RESPONSE_BINS = 32
+N_FREQ_RESPONSE_BINS = 64
 MIN_ONSET_GAP_S = 0.04  # 40ms debounce; merges key-down + key-up doubles
 
 THOCK_BAND = (100.0, 500.0)
@@ -342,14 +361,24 @@ def analyze_keyboard_audio(file_obj) -> AnalyzeResult:
     peak_freq_hz = float(freqs[peak_bin])
 
     # 8) Log-spaced frequency response (32 bins, normalized 0..1 in dB)
+    # Use peak-hold spectrum (max per FFT bin across frames) so sparse strokes
+    # in mostly-silent recordings still drive the curve. Mean would average
+    # the keyboard signal into the noise floor.
+    # Use bin centers + interpolation so low-freq log bins narrower than the
+    # FFT resolution (~21.5 Hz) still receive a value instead of staying 0.
+    spec_peak = stft.max(axis=1)
     log_edges = np.logspace(
         np.log10(max(HPF_CUTOFF_HZ, 80.0)), np.log10(sr / 2.0), N_FREQ_RESPONSE_BINS + 1
     )
+    log_centers = np.sqrt(log_edges[:-1] * log_edges[1:])  # geometric mean per bin
     fr = np.zeros(N_FREQ_RESPONSE_BINS, dtype=np.float32)
     for i in range(N_FREQ_RESPONSE_BINS):
         mask = (freqs >= log_edges[i]) & (freqs < log_edges[i + 1])
         if mask.any():
-            fr[i] = float(spec_avg[mask].mean())
+            fr[i] = float(spec_peak[mask].mean())
+        else:
+            # Bin narrower than FFT resolution: interpolate spectrum at center.
+            fr[i] = float(np.interp(log_centers[i], freqs, spec_peak))
     fr_db = librosa.amplitude_to_db(fr + 1e-9, ref=max(float(fr.max()), 1e-9))
     fr_norm = np.clip((fr_db + 60.0) / 60.0, 0.0, 1.0)  # -60 dBFS → 0, 0 dB → 1
 
@@ -414,5 +443,6 @@ def analyze_keyboard_audio(file_obj) -> AnalyzeResult:
         metallic_resonance=metallic_resonance,
         variance=variance,
         frequency_response=[float(x) for x in fr_norm],
+        frequency_response_hz=[float(x) for x in log_centers],
         verdict=None,  # TODO
     )

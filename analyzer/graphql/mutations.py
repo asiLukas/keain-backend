@@ -5,7 +5,7 @@ from graphql import GraphQLError
 from strawberry.file_uploads import Upload
 from strawberry.types.info import Info
 
-from analyzer.graphql.types import AnalyzeResult
+from analyzer.graphql.types import AnalysisType
 from analyzer.models import Analysis
 from analyzer.services import analyze_keyboard_audio
 from build.models import Build
@@ -24,7 +24,7 @@ class AnalyzerMutation:
     )
     def analyze_file(
         self, info: Info, file: Upload, build_id: Optional[strawberry.ID]
-    ) -> AnalyzeResult:
+    ) -> AnalysisType:
         build = None
         try:
             if build_id:
@@ -34,11 +34,12 @@ class AnalyzerMutation:
         try:
             result = analyze_keyboard_audio(file)
             file.seek(0)
-            Analysis.objects.create(
-                **strawberry.asdict(result), owner=info.context["user"], audio=file, build=build
+            return Analysis.objects.create(
+                **strawberry.asdict(result),
+                created_by=info.context["user"],
+                audio=file,
+                build=build,
             )
-
-            return result
         except GraphQLError:
             raise
         except ValueError as e:
