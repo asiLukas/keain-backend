@@ -11,6 +11,7 @@ class KeainUserType:
     email: strawberry.auto
     is_active: strawberry.auto
     theme: KeainUser.AppTheme
+    date_joined: strawberry.auto
 
 
 @strawberry.type
@@ -18,5 +19,3 @@ class AuthType:
     access_token: str
     refresh_token: str
     user: KeainUserType
-
-
