@@ -4,6 +4,20 @@ from django.db import models
 from build.models import OwnableQuerySet
 
 
+class MetricChoice(models.TextChoices):
+    THOCK = "THOCK"
+    CLACK = "CLACK"
+    CREAMINESS = "CREAMINESS"
+    PITCH = "PITCH"
+    CONSISTENCY = "CONSISTENCY"
+    TONAL_BALANCE = "TONAL_BALANCE"
+    PEAK_RESONANCE = "PEAK_RESONANCE"
+    PURITY = "PURITY"
+    PEAK_LOUDNESS = "PEAK_LOUDNESS"
+    METALLIC_RESONANCE = "METALLIC_RESONANCE"
+    VARIANCE = "VARIANCE"
+
+
 class Analysis(models.Model):
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,

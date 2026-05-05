@@ -1,3 +1,5 @@
+from typing import Optional
+
 import jwt
 import strawberry
 from django.contrib.auth.hashers import check_password, make_password
@@ -5,6 +7,7 @@ from django.db import IntegrityError
 from graphql import GraphQLError
 from strawberry.types.info import Info
 
+from analyzer.models import MetricChoice
 from core.error_codes import CONFLICT, UNAUTHENTICATED, err
 from core.permissions import IsAuthenticated
 from user.graphql.types import AuthType, KeainUserType
@@ -28,6 +31,23 @@ class KeainUserMutation:
     def update_user_theme(self, info: Info, theme: KeainUser.AppTheme) -> KeainUserType:
         user = info.context["user"]
         user.theme = theme
+        user.save()
+        return user
+
+    @strawberry.mutation(
+        description="Update a user's metrics", permission_classes=[IsAuthenticated]
+    )
+    def update_user_metrics(
+        self,
+        info: Info,
+        primary_metric: Optional[MetricChoice] = None,
+        secondary_metric: Optional[MetricChoice] = None,
+    ) -> KeainUserType:
+        user = info.context["user"]
+        if primary_metric:
+            user.primary_metric = primary_metric
+        if secondary_metric:
+            user.secondary_metric = secondary_metric
         user.save()
         return user
 

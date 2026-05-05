@@ -1,6 +1,7 @@
 import strawberry
 import strawberry_django
 
+from analyzer.models import MetricChoice
 from user.models import KeainUser
 
 
@@ -11,6 +12,8 @@ class KeainUserType:
     email: strawberry.auto
     is_active: strawberry.auto
     theme: KeainUser.AppTheme
+    primary_metric: MetricChoice
+    secondary_metric: MetricChoice
     date_joined: strawberry.auto
 
 
