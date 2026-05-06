@@ -45,8 +45,8 @@ class AnalysisType:
 
 @strawberry.type
 class AnalysisStats:
-    best_thock: int
-    best_clack: int
+    best_primary: int
+    best_secondary: int
     best_score: float
     # Avg score (last 7d) minus avg score (prior 7d), rounded to 1 decimal.
     week_delta: float

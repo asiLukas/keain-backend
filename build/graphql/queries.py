@@ -15,6 +15,7 @@ from build.models import (
 )
 from core.error_codes import NOT_FOUND, err
 from core.permissions import IsAuthenticated
+from core.utils import get_user_from_info
 
 from .types import (
     BuildType,
@@ -27,36 +28,31 @@ from .types import (
 )
 
 
-# TODO move to project wide utils, or create some decorator idk
-def _user(info: Info):
-    return info.context.get("user")
-
-
 @strawberry.type
 class BuildQuery:
     @strawberry.field
     def switches(self, info: Info) -> list[SwitchType]:
-        return Switch.objects.visible_to(_user(info))
+        return Switch.objects.visible_to(get_user_from_info(info))
 
     @strawberry.field
     def switch(self, info: Info, id: strawberry.ID) -> Optional[SwitchType]:
-        return Switch.objects.visible_to(_user(info)).filter(pk=id).first()
+        return Switch.objects.visible_to(get_user_from_info(info)).filter(pk=id).first()
 
     @strawberry.field
     def cases(self, info: Info) -> list[CaseType]:
-        return Case.objects.visible_to(_user(info))
+        return Case.objects.visible_to(get_user_from_info(info))
 
     @strawberry.field
     def case(self, info: Info, id: strawberry.ID) -> Optional[CaseType]:
-        return Case.objects.visible_to(_user(info)).filter(pk=id).first()
+        return Case.objects.visible_to(get_user_from_info(info)).filter(pk=id).first()
 
     @strawberry.field
     def keycap_sets(self, info: Info) -> list[KeycapSetType]:
-        return KeycapSet.objects.visible_to(_user(info))
+        return KeycapSet.objects.visible_to(get_user_from_info(info))
 
     @strawberry.field
     def keycap_set(self, info: Info, id: strawberry.ID) -> Optional[KeycapSetType]:
-        return KeycapSet.objects.visible_to(_user(info)).filter(pk=id).first()
+        return KeycapSet.objects.visible_to(get_user_from_info(info)).filter(pk=id).first()
 
     @strawberry.field
     def plates(self, info: Info) -> list[PlateType]:
