@@ -18,6 +18,21 @@ class MetricChoice(models.TextChoices):
     VARIANCE = "VARIANCE"
 
 
+# Metrics where lower raw value = better.
+INVERTED_METRICS = frozenset(
+    {
+        MetricChoice.PITCH,
+        MetricChoice.PEAK_RESONANCE,
+        MetricChoice.METALLIC_RESONANCE,
+        MetricChoice.VARIANCE,
+    }
+)
+
+
+def is_inverted(metric: MetricChoice) -> bool:
+    return MetricChoice(metric) in INVERTED_METRICS
+
+
 class Analysis(models.Model):
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,

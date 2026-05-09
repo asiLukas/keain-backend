@@ -6,7 +6,7 @@ from strawberry.file_uploads import Upload
 
 from analyzer.graphql.filters import AnalysisFilter
 from analyzer.graphql.orders import AnalysisOrder
-from analyzer.models import Analysis
+from analyzer.models import Analysis, MetricChoice
 from build.graphql.types import BuildType
 
 
@@ -44,9 +44,16 @@ class AnalysisType:
 
 
 @strawberry.type
+class MetricBest:
+    metric: MetricChoice
+    value: float
+
+
+@strawberry.type
 class AnalysisStats:
     best_primary: int
     best_secondary: int
     best_score: float
     # Avg score (last 7d) minus avg score (prior 7d), rounded to 1 decimal.
     week_delta: float
+    best_per_metric: List[MetricBest]

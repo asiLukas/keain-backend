@@ -3,7 +3,7 @@ from typing import List
 
 import strawberry
 import strawberry_django
-from django.db.models import Avg, ExpressionWrapper, F, FloatField, Max
+from django.db.models import Avg, ExpressionWrapper, F, FloatField, Max, Min, Value
 from django.utils import timezone
 from strawberry import Info
 from strawberry.types.info import Info
@@ -11,16 +11,30 @@ from strawberry_django.pagination import OffsetPaginated
 
 from analyzer.graphql.filters import AnalysisFilter
 from analyzer.graphql.orders import AnalysisOrder
-from analyzer.graphql.types import AnalysisStats, AnalysisType
-from analyzer.models import Analysis, MetricChoice
+from analyzer.graphql.types import AnalysisStats, AnalysisType, MetricBest
+from analyzer.models import Analysis, MetricChoice, is_inverted
 from core.permissions import IsAuthenticated
 from core.utils import get_user_from_info
 
 
+def metric_higher_better_expr(metric: MetricChoice) -> ExpressionWrapper:
+    """Return expression normalized so higher = better (inverts low-is-better metrics)."""
+    field = F(metric.lower())
+    expr = (Value(100) - field) if is_inverted(metric) else field
+    return ExpressionWrapper(expr, output_field=FloatField())
+
+
 def get_score_for_analyzer(primary: MetricChoice, secondary: MetricChoice) -> ExpressionWrapper:
     return ExpressionWrapper(
-        (F(primary.lower()) + F(secondary.lower())) / 2.0, output_field=FloatField()
+        (metric_higher_better_expr(primary) + metric_higher_better_expr(secondary)) / 2.0,
+        output_field=FloatField(),
     )
+
+
+def best_agg_for(metric: MetricChoice):
+    """Aggregate that picks raw best value per metric (Min if inverted, else Max)."""
+    field = metric.lower()
+    return Min(field) if is_inverted(metric) else Max(field)
 
 
 @strawberry.type
@@ -40,10 +54,13 @@ class AnalyzerQuery:
         primary = MetricChoice(user.primary_metric)
         secondary = MetricChoice(user.secondary_metric)
         qs = Analysis.objects.visible_to(user)
-        agg = qs.aggregate(
-            best_primary=Max(primary.lower()),
-            best_secondary=Max(secondary.lower()),
+        per_metric_agg = qs.aggregate(
+            **{f"best_{m.lower()}": best_agg_for(m) for m in MetricChoice}
         )
+        best_per_metric = [
+            MetricBest(metric=m, value=per_metric_agg[f"best_{m.lower()}"] or 0.0)
+            for m in MetricChoice
+        ]
         score_expr = get_score_for_analyzer(primary, secondary)
         best_score = qs.annotate(_score=score_expr).aggregate(m=Max("_score"))["m"] or 0.0
 
@@ -58,8 +75,9 @@ class AnalyzerQuery:
         week_delta = round((last_avg - prior_avg) * 10) / 10
 
         return AnalysisStats(
-            best_primary=agg["best_primary"] or 0,
-            best_secondary=agg["best_secondary"] or 0,
+            best_primary=per_metric_agg[f"best_{primary.lower()}"] or 0,
+            best_secondary=per_metric_agg[f"best_{secondary.lower()}"] or 0,
             best_score=best_score,
             week_delta=week_delta,
+            best_per_metric=best_per_metric,
         )
