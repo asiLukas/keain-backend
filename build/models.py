@@ -193,6 +193,7 @@ class Case(Ownable):
     material = models.CharField(max_length=20, choices=Material.choices, null=True, blank=True)
     mount_style = models.CharField(max_length=20, choices=MountStyle.choices, null=True, blank=True)
     layout = models.CharField(max_length=12, choices=Layout.choices, null=True, blank=True)
+    images = models.JSONField(default=list, blank=True)
 
     class Meta:
         ordering = ["manufacturer", "name"]
@@ -296,12 +297,15 @@ class KeycapSet(Ownable):
         XDA = "xda", "XDA"
         DSA = "dsa", "DSA"
         MDA = "mda", "MDA"
+        DCX = "dcx", "DCX"
+        MTNU = "mtnu", "MTNU"
         FLAT = "flat", "Flat"
         CHOC = "choc", "Choc"
 
     manufacturer = models.CharField(max_length=128, blank=True, default="")
     colorway = models.CharField(max_length=128, blank=True, default="")
     profile = models.CharField(max_length=12, choices=Profile.choices, null=True, blank=True)
+    images = models.JSONField(default=list, blank=True)
 
     class Meta:
         ordering = ["manufacturer", "colorway"]
