@@ -26,6 +26,8 @@ import strawberry
 from graphql import GraphQLError
 from scipy.signal import butter, sosfiltfilt
 
+from analyzer.character import compute_character_title
+from analyzer.models import MetricChoice
 from core.error_codes import INVALID_AUDIO, err
 
 
@@ -45,6 +47,12 @@ class AnalyzeResult:
     variance: int
     frequency_response: List[float]
     frequency_response_hz: List[float]
+    peak_hz: float
+    tonal_note: Optional[str]
+    tonal_hz: Optional[float]
+    tonal_cents: Optional[int]
+    tonal_range: Optional[str]
+    character_title: str
     verdict: Optional[str]  # behind paywall, TODO
 
 
@@ -60,6 +68,11 @@ THOCK_BAND = (100.0, 500.0)
 BODY_BAND = (500.0, 2000.0)
 CLACK_BAND = (2000.0, 8000.0)
 METALLIC_BAND = (3000.0, 6000.0)
+
+TONAL_BAND = (80.0, 2000.0)
+HPS_HARMONICS = 4
+TONAL_MIN_PROMINENCE = 3.0
+NOTE_NAMES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
 
 # ---- Validation thresholds ----
 # Calibrated for mobile-mic recordings of mechanical keyboards. Mech strokes
@@ -91,6 +104,68 @@ def _band_energy(spec_avg: np.ndarray, freqs: np.ndarray, lo: float, hi: float) 
     if not mask.any():
         return 0.0
     return float(spec_avg[mask].sum())
+
+
+def _tonal_range_label(hz: float) -> str:
+    if hz < 120.0:
+        return "deep"
+    if hz < 250.0:
+        return "low"
+    if hz < 500.0:
+        return "mid"
+    if hz < 2000.0:
+        return "high"
+    return "bright"
+
+
+def _detect_tonal(spec_avg: np.ndarray, freqs: np.ndarray):
+    """Estimate musical fundamental via Harmonic Product Spectrum.
+
+    Returns (note_name, hz, cents) or (None, None, None) if no confident peak.
+    """
+    if freqs.size < 4:
+        return None, None, None
+
+    spec = spec_avg.astype(np.float64)
+    base_len = len(spec) // HPS_HARMONICS
+    if base_len < 4:
+        return None, None, None
+    hps = spec[:base_len].copy()
+    for h in range(2, HPS_HARMONICS + 1):
+        hps *= spec[::h][:base_len]
+
+    hps_freqs = freqs[:base_len]
+    in_band = (hps_freqs >= TONAL_BAND[0]) & (hps_freqs <= TONAL_BAND[1])
+    if not in_band.any():
+        return None, None, None
+
+    masked = np.where(in_band, hps, 0.0)
+    idx = int(np.argmax(masked))
+    if masked[idx] <= 0.0:
+        return None, None, None
+
+    band_vals = hps[in_band]
+    prominence = float(masked[idx] / (np.median(band_vals) + 1e-12))
+    if prominence < TONAL_MIN_PROMINENCE:
+        return None, None, None
+
+    if 0 < idx < len(hps) - 1:
+        a, b, c = float(hps[idx - 1]), float(hps[idx]), float(hps[idx + 1])
+        denom = a - 2.0 * b + c
+        shift = 0.5 * (a - c) / denom if denom != 0.0 else 0.0
+    else:
+        shift = 0.0
+    bin_hz = float(freqs[1] - freqs[0]) if freqs.size >= 2 else 0.0
+    hz = float(hps_freqs[idx] + shift * bin_hz)
+    if hz <= 0.0:
+        return None, None, None
+
+    midi = 69.0 + 12.0 * float(np.log2(hz / 440.0))
+    midi_round = int(round(midi))
+    cents = int(round((midi - midi_round) * 100.0))
+    name = NOTE_NAMES[midi_round % 12]
+    octave = midi_round // 12 - 1
+    return f"{name}{octave}", hz, cents
 
 
 def _to_score(value: float, vmin: float, vmax: float) -> int:
@@ -360,6 +435,9 @@ def analyze_keyboard_audio(file_obj) -> AnalyzeResult:
     peak_prom = float(spec_avg[peak_bin] / (spec_avg.mean() + 1e-9))
     peak_freq_hz = float(freqs[peak_bin])
 
+    tonal_note, tonal_hz, tonal_cents = _detect_tonal(spec_avg, freqs)
+    tonal_range = _tonal_range_label(tonal_hz) if tonal_hz is not None else None
+
     # 8) Log-spaced frequency response (32 bins, normalized 0..1 in dB)
     # Use peak-hold spectrum (max per FFT bin across frames) so sparse strokes
     # in mostly-silent recordings still drive the curve. Mean would average
@@ -429,6 +507,18 @@ def analyze_keyboard_audio(file_obj) -> AnalyzeResult:
 
     msg = f"Analyzed {n_strokes} strokes across {duration_s:.2f}s"
 
+    character_title = compute_character_title(
+        {
+            MetricChoice.THOCK: thock,
+            MetricChoice.CLACK: clack,
+            MetricChoice.CREAMINESS: creaminess,
+            MetricChoice.PITCH: pitch,
+            MetricChoice.CONSISTENCY: consistency,
+            MetricChoice.TONAL_BALANCE: tonal_balance,
+            MetricChoice.PURITY: purity,
+        }
+    )
+
     return AnalyzeResult(
         message=msg,
         thock=thock,
@@ -444,5 +534,11 @@ def analyze_keyboard_audio(file_obj) -> AnalyzeResult:
         variance=variance,
         frequency_response=[float(x) for x in fr_norm],
         frequency_response_hz=[float(x) for x in log_centers],
+        peak_hz=peak_freq_hz,
+        tonal_note=tonal_note,
+        tonal_hz=tonal_hz,
+        tonal_cents=tonal_cents,
+        tonal_range=tonal_range,
+        character_title=character_title,
         verdict=None,  # TODO
     )

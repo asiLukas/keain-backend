@@ -62,6 +62,16 @@ class Analysis(models.Model):
     variance = models.IntegerField(default=0)
     frequency_response = models.JSONField(null=True, blank=True)
     frequency_response_hz = models.JSONField(null=True, blank=True)
+
+    peak_hz = models.FloatField(default=0.0)
+
+    tonal_note = models.CharField(max_length=8, blank=True, null=True)
+    tonal_hz = models.FloatField(blank=True, null=True)
+    tonal_cents = models.IntegerField(blank=True, null=True)
+    tonal_range = models.CharField(max_length=8, blank=True, null=True)
+
+    character_title = models.CharField(max_length=64, blank=True, default="")
+
     verdict = models.TextField(blank=True, null=True, default="")
 
     created_at = models.DateTimeField(auto_now_add=True)

@@ -34,6 +34,12 @@ class AnalysisType:
     variance: strawberry.auto
     frequency_response: Optional[List[float]]
     frequency_response_hz: Optional[List[float]]
+    peak_hz: strawberry.auto
+    tonal_note: strawberry.auto
+    tonal_hz: strawberry.auto
+    tonal_cents: strawberry.auto
+    tonal_range: strawberry.auto
+    character_title: strawberry.auto
     verdict: strawberry.auto
     created_at: strawberry.auto
     updated_at: strawberry.auto
