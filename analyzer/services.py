@@ -90,6 +90,7 @@ VALID_MIN_CREST = 2.0  # below = no transients (was 3.0; allow softer linears)
 # flatness to ~0.02-0.05 — those are common ambient and should NOT reject.
 # Threshold 0.01 isolates real music/speech from typical room ambience.
 VALID_MIN_GAP_FLATNESS = 0.01
+VALID_MIN_OVERALL_FLATNESS = 0.05  # fallback when no gaps measurable (dense speech overlap)
 GAP_MIN_DURATION_S = 0.05  # min 50ms gap to compute flatness reliably
 VALID_MAX_DECAY_MS = 600.0  # was 350; allow reverberant rooms + heavy bottom-out
 
@@ -191,6 +192,7 @@ def _validate_recording(
     stroke_rate: float,
     mean_crest: float,
     gap_flatness_median: float,
+    overall_flatness: float,
     mean_decay_ms: float,
 ) -> None:
     """Reject recordings unfit for scoring. Order matters: cheapest/most-likely first."""
@@ -212,8 +214,12 @@ def _validate_recording(
             "NO_TRANSIENTS",
             "Missing sharp transients. Sounds like continuous background noise.",
         )
-    # gap_flatness_median = -1.0 means insufficient gaps measured; skip check.
     if 0.0 <= gap_flatness_median < VALID_MIN_GAP_FLATNESS:
+        _reject(
+            "TONAL_NOISE",
+            "Tonal interference detected. Is music or speech in the recording?",
+        )
+    elif gap_flatness_median < 0.0 and overall_flatness < VALID_MIN_OVERALL_FLATNESS:
         _reject(
             "TONAL_NOISE",
             "Tonal interference detected. Is music or speech in the recording?",
@@ -427,6 +433,7 @@ def analyze_keyboard_audio(file_obj) -> AnalyzeResult:
         stroke_rate=stroke_rate,
         mean_crest=mean_crest,
         gap_flatness_median=gap_flatness_median,
+        overall_flatness=flatness_mean,
         mean_decay_ms=mean_decay_ms,
     )
 
