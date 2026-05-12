@@ -2,9 +2,17 @@
 
 Free tier uses librosa-only DSP. Premium tier (TODO) will layer ML on top.
 
-Audio assumed to come from a mobile microphone (44.1/48 kHz, mono, possibly
-m4a/aac/wav). Mobile mics roll off below ~80 Hz and apply AGC, so we
-high-pass at 80 Hz and peak-normalize before feature extraction.
+Audio input: from the mobile recorder. iOS sends mono 16-bit LPCM WAV
+(48 kHz, lossless). Android sends AAC-ADTS at 44.1 kHz (lossy but
+full-band; Android MediaRecorder cannot produce raw PCM/WAV directly).
+Both decoded via PyAV and resampled to 22050 Hz internally — Nyquist
+11 kHz covers the full thock/clack/metallic range. Mobile mics roll off
+below ~80 Hz, so we high-pass at 80 Hz and peak-normalize for shape
+comparison.
+
+Note on DSP: Android UNPROCESSED audio source bypasses OS-level AGC and
+noise suppression; iOS still applies AGC unless the audio session is in
+measurement mode on the client.
 
 Frequency bands chosen for mechanical keyboard acoustics:
     - Thock      100 -   500 Hz   deep, dampened bottom-out (foam, gasket)
@@ -17,17 +25,18 @@ Frequency bands chosen for mechanical keyboard acoustics:
 from __future__ import annotations
 
 from io import BytesIO
-from typing import List, Optional
+from typing import List, Mapping, Optional
 
 import av
 import librosa
 import numpy as np
 import strawberry
+from django.db.models import ExpressionWrapper, F, FloatField, Max, QuerySet, Value
 from graphql import GraphQLError
 from scipy.signal import butter, sosfiltfilt
 
 from analyzer.character import compute_character_title
-from analyzer.models import MetricChoice
+from analyzer.models import MetricChoice, is_inverted
 from core.error_codes import INVALID_AUDIO, err
 
 
@@ -235,6 +244,7 @@ def _decode_audio(raw: bytes, sr: int, max_duration_s: float) -> np.ndarray:
     """Decode any container PyAV supports to mono float32 PCM at sr Hz.
 
     PyAV bundles libav in its wheel, so no system ffmpeg is required.
+    Handles iOS WAV (LPCM, lossless) and Android AAC-ADTS uniformly.
     """
     max_samples = int(sr * max_duration_s)
     chunks: List[np.ndarray] = []
@@ -292,8 +302,7 @@ def analyze_keyboard_audio(file_obj) -> AnalyzeResult:
     raw_peak = float(np.max(np.abs(y))) if y.size else 0.0
     peak_dbfs = float(librosa.amplitude_to_db(np.array([max(raw_peak, 1e-9)]))[0])
     # True digital clipping = many samples saturated (flat-top distortion),
-    # not a single transient near fullscale. Mobile AGC pushes loud strokes
-    # close to 0 dBFS without actually distorting.
+    # not a single transient near fullscale.
     clipped_fraction = float(np.mean(np.abs(y) >= 0.999)) if y.size else 0.0
 
     # 1) High-pass to kill mobile-mic rumble + handling noise
@@ -549,3 +558,23 @@ def analyze_keyboard_audio(file_obj) -> AnalyzeResult:
         character_title=character_title,
         verdict=None,  # TODO
     )
+
+
+def metric_value_expr(metric: MetricChoice) -> ExpressionWrapper:
+    field = F(metric.lower())
+    expr = (Value(100) - field) if is_inverted(metric) else field
+    return ExpressionWrapper(expr, output_field=FloatField())
+
+
+def topn_for_metric(qs, metric, value) -> str | None:
+    expr = metric_value_expr(metric)
+    annotated = qs.annotate(_v=expr)
+    total = annotated.count()
+    if not total:
+        return None
+    better = annotated.filter(_v__gt=value).count()
+    pct = better / total * 100
+    for b in (1, 5, 10, 25, 50):
+        if pct <= b:
+            return f"Top {b}%"
+    return None

@@ -5,6 +5,7 @@ import strawberry
 import strawberry_django
 from django.db.models import Avg, ExpressionWrapper, F, FloatField, Max, Min, Value
 from django.utils import timezone
+from graphql import GraphQLError
 from strawberry import Info
 from strawberry.types.info import Info
 from strawberry_django.pagination import OffsetPaginated
@@ -13,6 +14,7 @@ from analyzer.graphql.filters import AnalysisFilter
 from analyzer.graphql.orders import AnalysisOrder
 from analyzer.graphql.types import AnalysisStats, AnalysisType, MetricBest
 from analyzer.models import Analysis, MetricChoice, is_inverted
+from analyzer.services import topn_for_metric
 from core.permissions import IsAuthenticated
 from core.utils import get_user_from_info
 
@@ -81,3 +83,25 @@ class AnalyzerQuery:
             week_delta=week_delta,
             best_per_metric=best_per_metric,
         )
+
+    @strawberry.field(permission_classes=[IsAuthenticated])
+    def analysis_rank_message(self, info: Info, analysis_id: strawberry.ID) -> str | None:
+        user = get_user_from_info(info)
+        try:
+            analysis = Analysis.objects.visible_to(user).get(id=analysis_id)
+        except Analysis.DoesNotExist:
+            raise GraphQLError("Analysis doesn't exist")
+
+        scores = {m: getattr(analysis, m.lower()) for m in MetricChoice}
+        metric = user.primary_metric
+        raw = scores[metric]
+        value = (100 - raw) if is_inverted(metric) else raw
+
+        label = topn_for_metric(
+            Analysis.objects.exclude(pk=analysis.pk),
+            metric,
+            value,
+        )
+        if label is None:
+            return None
+        return f"{label} · {metric}"

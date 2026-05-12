@@ -91,16 +91,20 @@ def _js_pick(items: Sequence[str], seed: str) -> str:
 
 
 def compute_character_title(scores: Mapping[MetricChoice, int]) -> str:
-    ranked: List[Tuple[MetricChoice, int, int]] = []
+    # Rank by norm descending — noun reflects what the keyboard IS,
+    # not just what's farthest from neutral. Avoids "Hollow Thock"
+    # naming a non-thocky board purely because its thock score is low.
+    ranked: List[Tuple[MetricChoice, int]] = []
     for m in _CHARACTER_METRICS:
         n = _norm(scores, m)
-        ranked.append((m, n, abs(n - 50)))
-    ranked.sort(key=lambda r: r[2], reverse=True)
+        ranked.append((m, n))
+    ranked.sort(key=lambda r: r[1], reverse=True)
 
-    top_metric, top_norm, _ = ranked[0]
-    second_metric, second_norm, second_dist = ranked[1]
+    top_metric, top_norm = ranked[0]
+    second_metric, second_norm = ranked[1]
 
-    use_second = second_dist >= _SECONDARY_MIN_DISTANCE and second_metric != top_metric
+    # Use second metric as adjective when it stands out from the top.
+    use_second = (top_norm - second_norm) <= _SECONDARY_MIN_DISTANCE and second_metric != top_metric
     if use_second:
         adj_metric, adj_norm = second_metric, second_norm
     else:

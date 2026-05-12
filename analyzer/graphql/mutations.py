@@ -33,13 +33,6 @@ class AnalyzerMutation:
             raise GraphQLError("Build not found", extensions=err(NOT_FOUND))
         try:
             result = analyze_keyboard_audio(file)
-            file.seek(0)
-            return Analysis.objects.create(
-                **strawberry.asdict(result),
-                created_by=info.context["user"],
-                audio=file,
-                build=build,
-            )
         except GraphQLError:
             raise
         except ValueError as e:
@@ -52,3 +45,11 @@ class AnalyzerMutation:
                 f"Failed to analyze audio: {e}",
                 extensions=err(INTERNAL),
             ) from e
+
+        file.seek(0)
+        return Analysis.objects.create(
+            **strawberry.asdict(result),
+            created_by=info.context["user"],
+            audio=file,
+            build=build,
+        )
