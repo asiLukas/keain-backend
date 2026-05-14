@@ -25,13 +25,13 @@ Frequency bands chosen for mechanical keyboard acoustics:
 from __future__ import annotations
 
 from io import BytesIO
-from typing import List, Mapping, Optional
+from typing import List, Optional
 
 import av
 import librosa
 import numpy as np
 import strawberry
-from django.db.models import ExpressionWrapper, F, FloatField, Max, QuerySet, Value
+from django.db.models import ExpressionWrapper, F, FloatField, Value
 from graphql import GraphQLError
 from scipy.signal import butter, sosfiltfilt
 
@@ -506,11 +506,19 @@ def analyze_keyboard_audio(file_obj) -> AnalyzeResult:
     # Tonal balance: 50 = even, <50 = bass-heavy, >50 = treble-heavy
     tonal_balance = _to_score(clack_ratio - thock_ratio, -0.5, 0.5)
 
-    # Peak resonance: prominence of dominant peak vs mean
-    peak_resonance = _to_score(peak_prom, 1.0, 10.0)
+    # Peak resonance: prominence of dominant peak vs mean. Tonal mech recordings
+    # routinely hit peak/mean ratios in the tens-to-hundreds, so use log scale
+    # to keep the score from saturating at 100.
+    peak_resonance = _to_score(
+        float(np.log10(max(peak_prom, 1.0))), np.log10(5.0), np.log10(300.0)
+    )
 
-    # Purity: inverse spectral flatness (1.0 = pure tone, 0.0 = white noise)
-    purity = _to_score(1.0 - flatness_mean, 0.5, 0.98)
+    # Purity: inverse spectral flatness. Flatness for real recordings sits in
+    # ~1e-3..1e-1, so map -log10(flatness) (1..3) to spread scores across range
+    # instead of saturating near 100.
+    purity = _to_score(
+        float(-np.log10(max(flatness_mean, 1e-4))), 1.0, 3.0
+    )
 
     # Peak loudness: raw dBFS pre-normalization (-40..0)
     peak_loudness = _to_score(peak_dbfs, -40.0, 0.0)
