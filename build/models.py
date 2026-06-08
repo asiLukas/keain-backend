@@ -384,6 +384,14 @@ class Build(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
+    version = models.PositiveIntegerField(default=1)
+
+    def save(self, *args, **kwargs):
+        if self.pk:
+            current = Build.objects.only("version").get(pk=self.pk).version
+            self.version = current + 1
+        super().save(*args, **kwargs)
+
     class Meta:
         ordering = ["-updated_at"]
         indexes = [models.Index(fields=["owner", "-updated_at"])]

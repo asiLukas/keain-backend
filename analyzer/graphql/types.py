@@ -1,4 +1,4 @@
-from typing import List, Optional
+from typing import TYPE_CHECKING, Annotated, List, Optional
 
 import strawberry
 import strawberry_django
@@ -7,7 +7,9 @@ from strawberry.file_uploads import Upload
 from analyzer.graphql.filters import AnalysisFilter
 from analyzer.graphql.orders import AnalysisOrder
 from analyzer.models import Analysis, MetricChoice
-from build.graphql.types import BuildType
+
+if TYPE_CHECKING:
+    from build.graphql.types import BuildType
 
 
 @strawberry.input
@@ -18,7 +20,7 @@ class AnalyzeInput:
 @strawberry_django.type(Analysis, filters=AnalysisFilter, order=AnalysisOrder, pagination=True)
 class AnalysisType:
     id: strawberry.auto
-    build: BuildType | None
+    build: Annotated["BuildType", strawberry.lazy("build.graphql.types")] | None
     audio: strawberry.auto
     message: strawberry.auto
     thock: strawberry.auto

@@ -1,6 +1,10 @@
 import strawberry
 import strawberry_django
+from strawberry_django.pagination import OffsetPaginated
 
+from analyzer.graphql.filters import AnalysisFilter
+from analyzer.graphql.orders import AnalysisOrder
+from analyzer.graphql.types import AnalysisType
 from build.models import (
     Build,
     Case,
@@ -82,3 +86,21 @@ class BuildType:
     keycap_set: KeycapSetType | None
     stabilizer: StabilizerType | None
     switch: SwitchType
+
+    version: strawberry.auto
+
+    analyses: OffsetPaginated[AnalysisType] = strawberry_django.offset_paginated(
+        filters=AnalysisFilter, order=AnalysisOrder
+    )
+
+    @strawberry_django.field
+    def analyses_count(self) -> int:
+        return self._analyses_count
+
+    @strawberry_django.field
+    def best_primary(self) -> int:
+        return int(self._best_primary or 0)
+
+    @strawberry_django.field
+    def best_secondary(self) -> int:
+        return int(self._best_secondary or 0)

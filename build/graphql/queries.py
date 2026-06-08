@@ -1,9 +1,13 @@
-from typing import Optional
+from typing import List, Optional
 
+from django.db.models import Count, Max, Min
 import strawberry
 from graphql import GraphQLError
 from strawberry.types.info import Info
+import strawberry_django
+from strawberry_django.pagination import OffsetPaginated
 
+from analyzer.models import MetricChoice, is_inverted
 from build.models import (
     Build,
     Case,
@@ -16,6 +20,18 @@ from build.models import (
 from core.error_codes import NOT_FOUND, err
 from core.permissions import IsAuthenticated
 from core.utils import get_user_from_info
+
+
+def _builds_for(user):
+    prim = MetricChoice(user.primary_metric)
+    sec = MetricChoice(user.secondary_metric)
+    prim_agg = Min if is_inverted(prim) else Max
+    sec_agg = Min if is_inverted(sec) else Max
+    return Build.objects.filter(owner=user).annotate(
+        _analyses_count=Count("analyses", distinct=True),
+        _best_primary=prim_agg(f"analyses__{prim.lower()}"),
+        _best_secondary=sec_agg(f"analyses__{sec.lower()}"),
+    )
 
 from .types import (
     BuildType,
@@ -78,13 +94,16 @@ class BuildQuery:
     def stabilizer(self, info: Info, id: strawberry.ID) -> Optional[StabilizerType]:
         return Stabilizer.objects.filter(pk=id).first()
 
-    @strawberry.field(permission_classes=[IsAuthenticated])
-    def builds(self, info: Info) -> list[BuildType]:
-        return Build.objects.filter(owner=info.context["user"])
+    @strawberry_django.offset_paginated(
+        OffsetPaginated[BuildType],
+        permission_classes=[IsAuthenticated],
+    )
+    def builds(self, info: Info) -> List[BuildType]:
+        return _builds_for(info.context["user"])
 
     @strawberry.field(permission_classes=[IsAuthenticated])
     def build(self, info: Info, id: strawberry.ID) -> BuildType:
         try:
-            return Build.objects.get(pk=id, owner=info.context["user"])
+            return _builds_for(info.context["user"]).get(pk=id)
         except Build.DoesNotExist:
             raise GraphQLError("Build not found.", extensions=err(NOT_FOUND))
