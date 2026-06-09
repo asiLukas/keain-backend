@@ -62,6 +62,7 @@ class AnalysisStats:
     best_primary: int
     best_secondary: int
     best_score: float
+    best_score_with_build: float
     # Avg score (last 7d) minus avg score (prior 7d), rounded to 1 decimal.
     week_delta: float
     best_per_metric: List[MetricBest]

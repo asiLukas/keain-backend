@@ -56,6 +56,7 @@ class AnalyzerQuery:
         primary = MetricChoice(user.primary_metric)
         secondary = MetricChoice(user.secondary_metric)
         qs = Analysis.objects.visible_to(user)
+        qs_with_build = qs.filter(build__isnull=False)
         per_metric_agg = qs.aggregate(
             **{f"best_{m.lower()}": best_agg_for(m) for m in MetricChoice}
         )
@@ -65,6 +66,9 @@ class AnalyzerQuery:
         ]
         score_expr = get_score_for_analyzer(primary, secondary)
         best_score = qs.annotate(_score=score_expr).aggregate(m=Max("_score"))["m"] or 0.0
+        best_score_with_build = (
+            qs_with_build.annotate(_score=score_expr).aggregate(m=Max("_score"))["m"] or 0.0
+        )
 
         now = timezone.now()
         last_week = qs.filter(created_at__gte=now - timedelta(days=7))
@@ -80,6 +84,7 @@ class AnalyzerQuery:
             best_primary=per_metric_agg[f"best_{primary.lower()}"] or 0,
             best_secondary=per_metric_agg[f"best_{secondary.lower()}"] or 0,
             best_score=best_score,
+            best_score_with_build=best_score_with_build,
             week_delta=week_delta,
             best_per_metric=best_per_metric,
         )

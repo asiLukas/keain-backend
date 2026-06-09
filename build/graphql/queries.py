@@ -45,6 +45,23 @@ from .types import (
 
 
 @strawberry.type
+class BuildsPaginated(OffsetPaginated[BuildType]):
+    @strawberry.field
+    def parts_count(self) -> int:
+        if self.queryset is None:
+            return 0
+        agg = self.queryset.aggregate(
+            s=Count("switch", distinct=True),
+            c=Count("case", distinct=True),
+            p=Count("plate", distinct=True),
+            pc=Count("pcb", distinct=True),
+            k=Count("keycap_set", distinct=True),
+            st=Count("stabilizer", distinct=True),
+        )
+        return sum(v or 0 for v in agg.values())
+
+
+@strawberry.type
 class BuildQuery:
     @strawberry.field
     def switches(self, info: Info) -> list[SwitchType]:
@@ -95,7 +112,7 @@ class BuildQuery:
         return Stabilizer.objects.filter(pk=id).first()
 
     @strawberry_django.offset_paginated(
-        OffsetPaginated[BuildType],
+        BuildsPaginated,
         permission_classes=[IsAuthenticated],
     )
     def builds(self, info: Info) -> List[BuildType]:
