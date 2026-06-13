@@ -5,6 +5,18 @@ from strawberry_django.pagination import OffsetPaginated
 from analyzer.graphql.filters import AnalysisFilter
 from analyzer.graphql.orders import AnalysisOrder
 from analyzer.graphql.types import AnalysisType
+from build.graphql.enums import (
+    CaseMaterialEnum,
+    CaseMountStyleEnum,
+    KeycapProfileEnum,
+    LayoutEnum,
+    PCBRgbEnum,
+    PlateMaterialEnum,
+    StabilizerMountEnum,
+    SwitchMaterialEnum,
+    SwitchMountEnum,
+    SwitchTypeEnum,
+)
 from build.models import (
     Build,
     Case,
@@ -20,11 +32,11 @@ from build.models import (
 class SwitchType:
     id: strawberry.auto
     name: strawberry.auto
-    type: strawberry.auto
-    mount_type: strawberry.auto
-    top_housing_material: strawberry.auto
-    bottom_housing_material: strawberry.auto
-    stem_material: strawberry.auto
+    type: SwitchTypeEnum | None
+    mount_type: SwitchMountEnum | None
+    top_housing_material: SwitchMaterialEnum | None
+    bottom_housing_material: SwitchMaterialEnum | None
+    stem_material: SwitchMaterialEnum | None
     spring: strawberry.auto
     actuation_force_g: strawberry.auto
     bottom_out_force_g: strawberry.auto
@@ -37,15 +49,15 @@ class CaseType:
     id: strawberry.auto
     name: strawberry.auto
     manufacturer: strawberry.auto
-    material: strawberry.auto
-    mount_style: strawberry.auto
-    layout: strawberry.auto
+    material: CaseMaterialEnum | None
+    mount_style: CaseMountStyleEnum | None
+    layout: LayoutEnum | None
 
 
 @strawberry_django.type(Plate)
 class PlateType:
     id: strawberry.auto
-    material: strawberry.auto
+    material: PlateMaterialEnum | None
     flex_cuts: strawberry.auto
     half_plate: strawberry.auto
 
@@ -53,7 +65,7 @@ class PlateType:
 @strawberry_django.type(PCB)
 class PCBType:
     id: strawberry.auto
-    rgb: strawberry.auto
+    rgb: PCBRgbEnum
     hotswap: strawberry.auto
     wireless: strawberry.auto
 
@@ -63,14 +75,14 @@ class KeycapSetType:
     id: strawberry.auto
     manufacturer: strawberry.auto
     colorway: strawberry.auto
-    profile: strawberry.auto
+    profile: KeycapProfileEnum | None
 
 
 @strawberry_django.type(Stabilizer)
 class StabilizerType:
     id: strawberry.auto
-    manufacturer: strawberry.auto
-    mount_type: strawberry.auto
+    name: strawberry.auto
+    mount_type: StabilizerMountEnum | None
 
 
 @strawberry_django.type(Build)
@@ -95,12 +107,12 @@ class BuildType:
 
     @strawberry_django.field
     def analyses_count(self) -> int:
-        return self._analyses_count
+        return getattr(self, "_analyses_count", None) or 0
 
     @strawberry_django.field
     def best_primary(self) -> int:
-        return int(self._best_primary or 0)
+        return int(getattr(self, "_best_primary", None) or 0)
 
     @strawberry_django.field
     def best_secondary(self) -> int:
-        return int(self._best_secondary or 0)
+        return int(getattr(self, "_best_secondary", None) or 0)

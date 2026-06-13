@@ -7,8 +7,16 @@ class OwnableQuerySet(models.QuerySet):
 
     def visible_to(self, user):
         if user is None or not user.is_authenticated:
-            return self.filter(created_by__isnull=True)
-        return self.filter(models.Q(created_by__isnull=True) | models.Q(created_by=user))
+            qs = self.filter(created_by__isnull=True)
+        else:
+            qs = self.filter(models.Q(created_by__isnull=True) | models.Q(created_by=user))
+        return qs.alias(
+            _owned=models.Case(
+                models.When(created_by__isnull=False, then=1),
+                default=0,
+                output_field=models.IntegerField(),
+            )
+        ).order_by("-_owned", *(self.model._meta.ordering or []))
 
 
 class Ownable(models.Model):
@@ -323,7 +331,7 @@ class KeycapSet(Ownable):
         return f"{self.manufacturer} {self.colorway}".strip()
 
 
-class Stabilizer(models.Model):
+class Stabilizer(Ownable):
     """Stabilizer set."""
 
     class MountType(models.TextChoices):
@@ -331,20 +339,20 @@ class Stabilizer(models.Model):
         PCB_SNAP_IN = "pcb_snap_in", "PCB Snap-In"
         PLATE_MOUNT = "plate_mount", "Plate Mount"
 
-    manufacturer = models.CharField(max_length=128, blank=True, default="")
+    name = models.CharField(max_length=128, blank=True, default="")
     mount_type = models.CharField(max_length=20, choices=MountType.choices, null=True, blank=True)
 
     class Meta:
-        ordering = ["manufacturer", "mount_type"]
+        ordering = ["name", "mount_type"]
         constraints = [
             models.UniqueConstraint(
-                fields=["manufacturer", "mount_type"],
+                fields=["name", "mount_type"],
                 name="unique_stabilizer_variant",
             ),
         ]
 
     def __str__(self) -> str:
-        return f"{self.manufacturer} {self.mount_type or ''}".strip()
+        return f"{self.name} {self.mount_type or ''}".strip()
 
 
 class Build(models.Model):

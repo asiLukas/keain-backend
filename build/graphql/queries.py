@@ -63,7 +63,10 @@ class BuildsPaginated(OffsetPaginated[BuildType]):
 
 @strawberry.type
 class BuildQuery:
-    @strawberry.field
+    @strawberry_django.offset_paginated(
+        OffsetPaginated[SwitchType],
+        permission_classes=[IsAuthenticated],
+    )
     def switches(self, info: Info) -> list[SwitchType]:
         return Switch.objects.visible_to(get_user_from_info(info))
 
@@ -71,7 +74,10 @@ class BuildQuery:
     def switch(self, info: Info, id: strawberry.ID) -> Optional[SwitchType]:
         return Switch.objects.visible_to(get_user_from_info(info)).filter(pk=id).first()
 
-    @strawberry.field
+    @strawberry_django.offset_paginated(
+        OffsetPaginated[CaseType],
+        permission_classes=[IsAuthenticated],
+    )
     def cases(self, info: Info) -> list[CaseType]:
         return Case.objects.visible_to(get_user_from_info(info))
 
@@ -79,7 +85,10 @@ class BuildQuery:
     def case(self, info: Info, id: strawberry.ID) -> Optional[CaseType]:
         return Case.objects.visible_to(get_user_from_info(info)).filter(pk=id).first()
 
-    @strawberry.field
+    @strawberry_django.offset_paginated(
+        OffsetPaginated[KeycapSetType],
+        permission_classes=[IsAuthenticated],
+    )
     def keycap_sets(self, info: Info) -> list[KeycapSetType]:
         return KeycapSet.objects.visible_to(get_user_from_info(info))
 
@@ -87,7 +96,10 @@ class BuildQuery:
     def keycap_set(self, info: Info, id: strawberry.ID) -> Optional[KeycapSetType]:
         return KeycapSet.objects.visible_to(get_user_from_info(info)).filter(pk=id).first()
 
-    @strawberry.field
+    @strawberry_django.offset_paginated(
+        OffsetPaginated[PlateType],
+        permission_classes=[IsAuthenticated],
+    )
     def plates(self, info: Info) -> list[PlateType]:
         return Plate.objects.all()
 
@@ -95,7 +107,10 @@ class BuildQuery:
     def plate(self, info: Info, id: strawberry.ID) -> Optional[PlateType]:
         return Plate.objects.filter(pk=id).first()
 
-    @strawberry.field
+    @strawberry_django.offset_paginated(
+        OffsetPaginated[PCBType],
+        permission_classes=[IsAuthenticated],
+    )
     def pcbs(self, info: Info) -> list[PCBType]:
         return PCB.objects.all()
 
@@ -103,13 +118,16 @@ class BuildQuery:
     def pcb(self, info: Info, id: strawberry.ID) -> Optional[PCBType]:
         return PCB.objects.filter(pk=id).first()
 
-    @strawberry.field
+    @strawberry_django.offset_paginated(
+        OffsetPaginated[StabilizerType],
+        permission_classes=[IsAuthenticated],
+    )
     def stabilizers(self, info: Info) -> list[StabilizerType]:
-        return Stabilizer.objects.all()
+        return Stabilizer.objects.visible_to(get_user_from_info(info))
 
     @strawberry.field
     def stabilizer(self, info: Info, id: strawberry.ID) -> Optional[StabilizerType]:
-        return Stabilizer.objects.filter(pk=id).first()
+        return Stabilizer.objects.visible_to(get_user_from_info(info)).filter(pk=id).first()
 
     @strawberry_django.offset_paginated(
         BuildsPaginated,

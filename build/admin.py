@@ -97,9 +97,9 @@ class KeycapSetAdmin(admin.ModelAdmin):
 
 @admin.register(Stabilizer)
 class StabilizerAdmin(admin.ModelAdmin):
-    list_display = ("manufacturer", "mount_type")
+    list_display = ("name", "mount_type")
     list_filter = ("mount_type",)
-    search_fields = ("manufacturer",)
+    search_fields = ("name",)
 
 
 @admin.register(Build)
