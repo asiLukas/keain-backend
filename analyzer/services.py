@@ -20,6 +20,9 @@ Frequency bands chosen for mechanical keyboard acoustics:
     - Clack     2000 -  8000 Hz   sharp top-out / keycap click (ABS, stiff)
     - Metallic  3000 -  6000 Hz   spring/leaf ping (narrow peaks; per
                                   attackshark.com ping = 2-5kHz)
+
+
+TODO user vector embedding instead of the hardcoded values for tones
 """
 
 from __future__ import annotations
