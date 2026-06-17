@@ -98,6 +98,7 @@ class BuildType:
     keycap_set: KeycapSetType | None
     stabilizer: StabilizerType | None
     switch: SwitchType
+    layout: LayoutEnum | None
 
     version: strawberry.auto
 

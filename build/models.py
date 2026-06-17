@@ -388,6 +388,7 @@ class Build(models.Model):
         related_name="builds",
     )
     switch = models.ForeignKey(Switch, on_delete=models.PROTECT, related_name="builds")
+    layout = models.CharField(max_length=12, choices=Layout.choices, null=True, blank=True)
     notes = models.TextField(blank=True, default="")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
